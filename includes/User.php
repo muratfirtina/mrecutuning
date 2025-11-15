@@ -263,6 +263,7 @@ class User
                 }
 
                 // Tüm kullanıcı bilgilerini session'a kaydet
+                session_regenerate_id(true);
                 $_SESSION['user_id'] = $user['id'];
                 $_SESSION['username'] = $user['username']; // Orjinal değer, fallback yok
                 $_SESSION['email'] = $user['email'];

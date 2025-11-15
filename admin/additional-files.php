@@ -92,9 +92,9 @@ try {
     $params = [];
     
     if (!empty($search)) {
-        $whereConditions[] = "(af.original_name LIKE ? OR af.file_name LIKE ? OR sender_user.username LIKE ? OR receiver_user.username LIKE ?)";
+        $whereConditions[] = "(af.original_name LIKE ? OR af.file_name LIKE ? OR sender_user.username LIKE ? OR receiver_user.username LIKE ? OR fu.plate LIKE ? OR ecu.name LIKE ? OR d.name LIKE ?)";
         $searchTerm = "%{$search}%";
-        $params = array_merge($params, [$searchTerm, $searchTerm, $searchTerm, $searchTerm]);
+        $params = array_merge($params, [$searchTerm, $searchTerm, $searchTerm, $searchTerm, $searchTerm, $searchTerm, $searchTerm]);
     }
     
     if (!empty($status)) {
@@ -122,10 +122,15 @@ try {
     
     $whereClause = !empty($whereConditions) ? 'WHERE ' . implode(' AND ', $whereConditions) : '';
     
-    // Toplam kayıt sayısı
+    // Toplam kayıt sayısı - Tüm JOIN'ler eklendi
     $totalQuery = "
         SELECT COUNT(*) 
         FROM additional_files af
+        LEFT JOIN users sender_user ON af.sender_id = sender_user.id
+        LEFT JOIN users receiver_user ON af.receiver_id = receiver_user.id
+        LEFT JOIN file_uploads fu ON af.related_file_id = fu.id AND af.related_file_type = 'upload'
+        LEFT JOIN ecus ecu ON fu.ecu_id = ecu.id
+        LEFT JOIN devices d ON fu.device_id = d.id
         $whereClause
     ";
     $totalStmt = $pdo->prepare($totalQuery);
@@ -135,7 +140,7 @@ try {
     // Sayfalama
     $totalPages = ceil($totalRecords / $limit);
     
-    // Ana sorgu
+    // Ana sorgu - Araç bilgilerini ekledik
     $query = "
         SELECT af.*,
                sender_user.username as sender_username,
@@ -147,13 +152,18 @@ try {
                    WHEN af.related_file_type = 'response' THEN fr.original_name
                    WHEN af.related_file_type = 'revision' THEN rf.original_name
                    ELSE 'Bilinmiyor'
-               END as related_file_name
+               END as related_file_name,
+               fu.plate as vehicle_plate,
+               ecu.name as ecu_name,
+               d.name as device_name
         FROM additional_files af
         LEFT JOIN users sender_user ON af.sender_id = sender_user.id
         LEFT JOIN users receiver_user ON af.receiver_id = receiver_user.id
         LEFT JOIN file_uploads fu ON af.related_file_id = fu.id AND af.related_file_type = 'upload'
         LEFT JOIN file_responses fr ON af.related_file_id = fr.id AND af.related_file_type = 'response'
         LEFT JOIN revision_files rf ON af.related_file_id = rf.id AND af.related_file_type = 'revision'
+        LEFT JOIN ecus ecu ON fu.ecu_id = ecu.id
+        LEFT JOIN devices d ON fu.device_id = d.id
         $whereClause
         ORDER BY af.upload_date DESC
         LIMIT $limit OFFSET $offset
@@ -222,7 +232,7 @@ include '../includes/admin_sidebar.php';
                 <div class="col-md-2">
                     <label class="form-label">Arama</label>
                     <input type="text" name="search" class="form-control" 
-                           placeholder="Dosya adı, kullanıcı..." value="<?php echo htmlspecialchars($search); ?>">
+                           placeholder="Dosya adı, kullanıcı, araç..." value="<?php echo htmlspecialchars($search); ?>">
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">Durum</label>
@@ -296,6 +306,7 @@ include '../includes/admin_sidebar.php';
                             <tr>
                                 <th>Dosya Bilgileri</th>
                                 <th>İlgili Dosya</th>
+                                <th>Araç Bilgileri</th>
                                 <th>Gönderen</th>
                                 <th>Alan</th>
                                 <th>Kredi</th>
@@ -310,16 +321,50 @@ include '../includes/admin_sidebar.php';
                                     <td>
                                         <div class="d-flex align-items-center">
                                             <i class="bi bi-folder2-open text-info me-2"></i>
-                                            <div>
-                                                <div class="fw-bold"><?php echo htmlspecialchars($file['original_name']); ?></div>
+                                            <div style="max-width: 200px;">
+                                                <div class="fw-bold text-truncate" title="<?php echo htmlspecialchars($file['original_name']); ?>">
+                                                    <?php echo htmlspecialchars($file['original_name']); ?>
+                                                </div>
                                                 <small class="text-muted"><?php echo formatFileSize($file['file_size']); ?></small>
                                             </div>
                                         </div>
                                     </td>
                                     <td>
-                                        <div>
+                                        <div style="max-width: 150px;">
                                             <span class="badge bg-secondary text-uppercase"><?php echo $file['related_file_type']; ?></span>
-                                            <br><small class="text-muted"><?php echo htmlspecialchars($file['related_file_name']); ?></small>
+                                            <br><small class="text-muted text-truncate d-block" title="<?php echo htmlspecialchars($file['related_file_name']); ?>"><?php echo htmlspecialchars($file['related_file_name']); ?></small>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div>
+                                            <?php if (!empty($file['vehicle_plate'])): ?>
+                                                <span class="badge bg-primary text-white mb-1">
+                                                    <i class="bi bi-credit-card me-1"></i>
+                                                    <?php echo strtoupper(htmlspecialchars($file['vehicle_plate'])); ?>
+                                                </span>
+                                                <br>
+                                            <?php endif; ?>
+                                            
+                                            <?php if (!empty($file['ecu_name'])): ?>
+                                                <span class="badge bg-success text-white me-1">
+                                                    <i class="bi bi-cpu me-1"></i>
+                                                    <?php echo htmlspecialchars($file['ecu_name']); ?>
+                                                </span>
+                                            <?php endif; ?>
+                                            
+                                            <?php if (!empty($file['device_name'])): ?>
+                                                <span class="badge bg-secondary text-white">
+                                                    <i class="bi bi-hdd-network me-1"></i>
+                                                    <?php echo htmlspecialchars($file['device_name']); ?>
+                                                </span>
+                                            <?php endif; ?>
+                                            
+                                            <?php if (empty($file['vehicle_plate']) && empty($file['ecu_name']) && empty($file['device_name'])): ?>
+                                                <small class="text-muted">
+                                                    <i class="bi bi-info-circle me-1"></i>
+                                                    Bilgi yok
+                                                </small>
+                                            <?php endif; ?>
                                         </div>
                                     </td>
                                     <td>
@@ -489,6 +534,39 @@ function showCancelModal(fileId, fileType, fileName) {
     var modal = new bootstrap.Modal(document.getElementById('adminCancelModal'));
     modal.show();
 }
+
+// Türkçe karakter desteği için arama formu düzenleme
+document.addEventListener('DOMContentLoaded', function() {
+    var searchForm = document.querySelector('form[method="GET"]');
+    var searchInput = document.querySelector('input[name="search"]');
+    
+    if(searchForm && searchInput) {
+        searchForm.addEventListener('submit', function(e) {
+            // Arama alanında değer varsa ve bu değeri biz kodlamadıysak
+            if(searchInput.value) {
+                // Formun normal gönderimini durdur
+                e.preventDefault();
+                
+                // Mevcut URL'deki tüm parametreleri al
+                const params = new URLSearchParams(window.location.search);
+                
+                // 'search' parametresini yeni kodlanmış değerle güncelle
+                params.set('search', searchInput.value);
+                
+                // Diğer form alanlarını da ekle
+                var formData = new FormData(searchForm);
+                for (var pair of formData.entries()) {
+                    if (pair[0] !== 'search') {
+                        params.set(pair[0], pair[1]);
+                    }
+                }
+                
+                // Sayfayı yeni URL ile yeniden yönlendir
+                window.location.href = window.location.pathname + '?' + params.toString();
+            }
+        });
+    }
+});
 </script>
 
 <?php include '../includes/admin_footer.php'; ?>

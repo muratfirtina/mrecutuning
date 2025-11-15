@@ -1,0 +1,44 @@
+# Mr ECU Debug Directory - Access Control
+# Bu dizin sadece development ve authorized IP'lerden erişilebilir olmalı
+
+# Production'da tüm erişimi kapat
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # Eğer production ortamındaysanız (mrecutuning.com)
+    RewriteCond %{HTTP_HOST} ^(www\.)?mrecutuning\.com$ [NC]
+    
+    # Ve IP whitelist'te değilseniz
+    RewriteCond %{REMOTE_ADDR} !^YOUR_IP_HERE$
+    
+    # 403 Forbidden döndür
+    RewriteRule .* - [F,L]
+</IfModule>
+
+# Alternatif: Apache 2.4+ için IP bazlı erişim kontrolü
+<IfModule mod_authz_core.c>
+    # Production'da varsayılan olarak eriş deny
+    <RequireAll>
+        # Local IP'ler
+        Require ip 127.0.0.1
+        Require ip ::1
+        
+        # Kendi IP'nizi buraya ekleyin (örnek):
+        # Require ip 123.456.789.0
+        
+        # Veya local network
+        # Require ip 192.168.1.0/24
+    </RequireAll>
+</IfModule>
+
+# Directory listing'i kapat
+Options -Indexes
+
+# PHP dosyaları hariç hiçbir şeye izin verme
+<FilesMatch "\.(txt|log|md|json|xml)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# Error pages
+ErrorDocument 403 "Access Denied - Debug tools are restricted"

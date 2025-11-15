@@ -268,12 +268,12 @@ $security = null;
 /** @var SecureDatabase|null $secureDb */
 $secureDb = null;
 
-// Güvenlik sistemini başlat (sadece dosyalar mevcutsa)
-if (SECURITY_ENABLED && class_exists('SecurityManager')) {
+// Database bağlantısını her durumda yükle (sadece bir kez)
+require_once __DIR__ . '/database.php';
+
+// Güvenlik sistemini başlat (sadece dosyalar mevcutsa ve database bağlantısı varsa)
+if (SECURITY_ENABLED && class_exists('SecurityManager') && isset($pdo)) {
     try {
-        // Database bağlantısı
-        require_once __DIR__ . '/database.php';
-        
         // SecurityManager başlat
         $security = new SecurityManager($pdo);
         
@@ -289,14 +289,20 @@ if (SECURITY_ENABLED && class_exists('SecurityManager')) {
             SecurityHeaders::setAllHeaders(CSP_STRICT_MODE);
         }
         
+        if (DEBUG) {
+            error_log('Security system initialized successfully');
+        }
+        
     } catch (Exception $e) {
         error_log('Security system initialization failed: ' . $e->getMessage());
-        // Güvenlik sistemi başlatılamazsa normal database kullan
-        require_once __DIR__ . '/database.php';
+        // Güvenlik sistemi başlatılamazsa sadece normal database kullan (zaten yüklü)
     }
 } else {
-    // Güvenlik sistemi devre dışı - normal database
-    require_once __DIR__ . '/database.php';
+    if (DEBUG) {
+        $reason = !SECURITY_ENABLED ? 'Security disabled' : 
+                  (!class_exists('SecurityManager') ? 'SecurityManager not found' : 'PDO not available');
+        error_log('Security system not initialized: ' . $reason);
+    }
 }
 
 // ==========================================

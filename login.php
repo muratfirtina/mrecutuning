@@ -5,6 +5,9 @@
 require_once 'config/config.php';
 require_once 'config/database.php';
 
+// GÜVENLİK SINIFI BAŞLATILDI
+$security = new SecurityManager($pdo);
+
 // Zaten giriş yapmışsa yönlendir
 if (isLoggedIn()) {
     redirect(isAdmin() ? 'admin/' : 'user/');
@@ -33,35 +36,55 @@ if (isset($_GET['error'])) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = sanitize($_POST['email']);
-    $password = $_POST['password'];
-    $remember = isset($_POST['remember']);
-    
-    if (empty($email) || empty($password)) {
-        $error = 'Email ve şifre alanları zorunludur.';
+    // CSRF TOKEN KONTROLÜ
+    if (!isset($_POST['csrf_token']) || !$security->validateCsrfToken($_POST['csrf_token'])) {
+        $error = 'Geçersiz istek. Lütfen formu yeniden gönderin.';
     } else {
-        $user = new User($pdo);
-        $loginResult = $user->login($email, $password);
+        $email = sanitize($_POST['email']);
+        $password = $_POST['password'];
+        $remember = isset($_POST['remember']);
         
-        if ($loginResult['success']) {
-            if ($remember) {
-                $rememberToken = generateToken();
-                $user->setRememberToken($_SESSION['user_id'], $rememberToken);
-                setcookie('remember_token', $rememberToken, time() + (30 * 24 * 60 * 60), '/', '', false, true);
-            }
-            
-            $redirect = isset($_GET['redirect']) ? $_GET['redirect'] : (isAdmin() ? 'admin/' : 'user/');
-            redirect($redirect);
+        if (empty($email) || empty($password)) {
+            $error = 'Email ve şifre alanları zorunludur.';
         } else {
-            $error = $loginResult['message'];
-            // Email doğrulama gerekiyorsa özel mesaj
-            if (strpos($error, 'Email adresinizi doğrula') !== false) {
-                $showEmailVerification = true;
-                $userEmail = $email;
+            // BRUTE-FORCE KONTROLÜ YAPILDI
+            if (!$security->checkBruteForce($email, 5, 900)) {
+                $error = 'Çok fazla başarısız deneme. 15 dakika bekleyin.';
+            } else {
+                $user = new User($pdo);
+                $loginResult = $user->login($email, $password);
+                
+                if ($loginResult['success']) {
+                    // OTURUM YENİLEME (SESSION FIXATION KORUMASI)
+                    session_regenerate_id(true);
+                    $_SESSION['user_id'] = $loginResult['user_id'];
+                    
+                    if ($remember) {
+                        $rememberToken = generateToken();
+                        $user->setRememberToken($_SESSION['user_id'], $rememberToken);
+                        setcookie('remember_token', $rememberToken, time() + (30 * 24 * 60 * 60), '/', '', false, true);
+                    }
+                    
+                    $redirect = isset($_GET['redirect']) ? $_GET['redirect'] : (isAdmin() ? 'admin/' : 'user/');
+                    redirect($redirect);
+                } else {
+                    // BAŞARISIZ DENEME KAYDI
+                    $security->recordBruteForceAttempt($email);
+                    
+                    $error = $loginResult['message'];
+                    // Email doğrulama gerekiyorsa özel mesaj
+                    if (strpos($error, 'Email adresinizi doğrula') !== false) {
+                        $showEmailVerification = true;
+                        $userEmail = $email;
+                    }
+                }
             }
         }
     }
 }
+
+// CSRF TOKEN OLUŞTUR
+$csrfToken = $security->generateCsrfToken();
 
 $pageTitle = 'Giriş Yap';
 $pageDescription = 'Mr ECU hesabınızla giriş yapın ve profesyonel ECU hizmetlerimizden faydalanın.';
@@ -177,6 +200,9 @@ include 'includes/header.php';
                         <?php endif; ?>
 
                         <form method="POST" action="" id="loginForm">
+                            <!-- CSRF TOKEN EKLENDİ -->
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken); ?>">
+
                             <div class="mb-4">
                                 <label class="form-label fw-semibold">E-posta</label>
                                 <input type="email" name="email" class="form-control form-control-lg" 

@@ -120,9 +120,9 @@ try {
     $params = [];
     
     if ($search) {
-        $whereClause .= " AND (u.original_name LIKE ? OR users.username LIKE ? OR users.email LIKE ? OR u.plate LIKE ? OR users.first_name LIKE ? OR users.last_name LIKE ?)";
+        $whereClause .= " AND (u.original_name LIKE ? OR users.username LIKE ? OR users.email LIKE ? OR u.plate LIKE ? OR users.first_name LIKE ? OR users.last_name LIKE ? OR ecu.name LIKE ? OR d.name LIKE ?)";
         $searchParam = "%$search%";
-        $params = array_merge($params, [$searchParam, $searchParam, $searchParam, $searchParam, $searchParam, $searchParam]);
+        $params = array_merge($params, [$searchParam, $searchParam, $searchParam, $searchParam, $searchParam, $searchParam, $searchParam, $searchParam]);
     }
     
     if ($status) {
@@ -157,6 +157,8 @@ try {
         FROM file_uploads u
         LEFT JOIN users ON u.user_id = users.id
         LEFT JOIN brands b ON u.brand_id = b.id
+        LEFT JOIN ecus ecu ON u.ecu_id = ecu.id
+        LEFT JOIN devices d ON u.device_id = d.id
         $whereClause
     ";
     $stmt = $pdo->prepare($countQuery);
@@ -352,7 +354,7 @@ include '../includes/admin_sidebar.php';
                 </label>
                 <input type="text" class="form-control" id="search" name="search" 
                        value="<?php echo htmlspecialchars($search); ?>" 
-                       placeholder="Dosya adı, kullanıcı adı, plaka...">
+                       placeholder="Dosya adı, kullanıcı, plaka, ECU, Device...">
             </div>
             
             <div class="col-md-2">
