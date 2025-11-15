@@ -939,12 +939,17 @@ class FileManager {
                     
                     $user = new User($this->pdo);
                     
-                    // Ters kredi sistemi - kredi_used'ı artır
-                    $creditResult = $user->addCreditDirectSimple(
+                    // Ters kredi sistemi - kredi_used'ı artır (YENİ updateCredits metodu)
+                    $creditResult = $user->updateCredits(
                         $upload['user_id'], 
                         $creditsCharged, 
                         'file_charge', 
-                        'Dosya işleme ücreti: ' . $upload['original_name'] . ' (Yanıt: ' . $fileData['name'] . ')'
+                        [
+                            'description' => 'Dosya işleme ücreti: ' . $upload['original_name'] . ' (Yanıt: ' . $fileData['name'] . ')',
+                            'reference_id' => $uploadId,
+                            'reference_type' => 'file_upload',
+                            'admin_id' => $_SESSION['user_id'] ?? null
+                        ]
                     );
                     
                     if (!$creditResult) {
@@ -2313,12 +2318,17 @@ class FileManager {
                     
                     $user = new User($this->pdo);
                     
-                    // Kullanıcıdan kredi düşür
-                    $creditResult = $user->addCreditDirectSimple(
+                    // Kullanıcıdan kredi düşür (YENİ updateCredits metodu)
+                    $creditResult = $user->updateCredits(
                         $receiverId, 
                         $credits, 
                         'additional_file_charge', 
-                        'Ek dosya ücreti: ' . $fileData['name'] . ' (Gönderen: ' . ($senderType === 'admin' ? 'Admin' : 'Kullanıcı') . ')'
+                        [
+                            'description' => 'Ek dosya ücreti: ' . $fileData['name'] . ' (Gönderen: ' . ($senderType === 'admin' ? 'Admin' : 'Kullanıcı') . ')',
+                            'reference_id' => $additionalFileId,
+                            'reference_type' => 'additional_file',
+                            'admin_id' => ($senderType === 'admin' ? $senderId : null)
+                        ]
                     );
                     
                     if (!$creditResult) {

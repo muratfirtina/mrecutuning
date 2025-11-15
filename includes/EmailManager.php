@@ -31,13 +31,13 @@ class EmailManager {
      * Email konfigürasyonunu yükle (.env dosyasından)
      */
     private function loadEmailConfig() {
-        $this->smtp_host = getenv('SMTP_HOST') ?: 'smtp-mail.outlook.com';
-        $this->smtp_port = getenv('SMTP_PORT') ?: 587;
-        $this->smtp_username = getenv('SMTP_USERNAME') ?: 'mr.ecu@outlook.com';
-        $this->smtp_password = getenv('SMTP_PASSWORD') ?: 'Agucuk93';
-        $this->smtp_encryption = getenv('SMTP_ENCRYPTION') ?: 'tls';
-        $this->from_email = getenv('SMTP_FROM_EMAIL') ?: 'mr.ecu@outlook.com';
-        $this->from_name = getenv('SMTP_FROM_NAME') ?: 'Mr ECU';
+        $this->smtp_host = getenv('SMTP_HOST');
+        $this->smtp_port = getenv('SMTP_PORT');
+        $this->smtp_username = getenv('SMTP_USERNAME');
+        $this->smtp_password = getenv('SMTP_PASSWORD');
+        $this->smtp_encryption = getenv('SMTP_ENCRYPTION');
+        $this->from_email = getenv('SMTP_FROM_EMAIL');
+        $this->from_name = getenv('SMTP_FROM_NAME');
         $this->debug_mode = getenv('DEBUG') === 'true';
         
         error_log('Email config loaded: Host=' . $this->smtp_host . ', Port=' . $this->smtp_port . ', User=' . $this->smtp_username);
